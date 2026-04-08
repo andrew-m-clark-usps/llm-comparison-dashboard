@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LLM Comparison Dashboard</title>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #f2f2f7;
+      --surface:     rgba(255,255,255,0.72);
+      --surface-solid: #ffffff;
+      --border:      rgba(0,0,0,0.08);
+      --text:        #1c1c1e;
+      --text-secondary: #6e6e73;
+      --accent:      #0071e3;
+      --accent-hover:#0077ed;
+      --radius-lg:   18px;
+      --radius-md:   12px;
+      --radius-sm:   8px;
+      --shadow-card: 0 2px 20px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.05);
+      --shadow-btn:  0 1px 6px rgba(0,113,227,0.35);
+
+      --openai-color: #10a37f;
+      --anthropic-color: #c96442;
+      --google-color: #4285f4;
+      --manus-color: #7c3aed;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+                   Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ── */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      background: rgba(242,242,247,0.82);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+    }
+
+    .header-inner {
+      max-width: 1280px;
+      margin: 0 auto;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 17px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+    }
+
+    .logo-icon {
+      width: 30px;
+      height: 30px;
+      background: linear-gradient(135deg, #0071e3 0%, #7c3aed 100%);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 15px;
+    }
+
+    .badge {
+      font-size: 11px;
+      font-weight: 500;
+      color: #fff;
+      background: var(--accent);
+      padding: 2px 8px;
+      border-radius: 20px;
+      letter-spacing: 0.1px;
+    }
+
+    /* ── Main layout ── */
+    main {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    /* ── Hero / Prompt area ── */
+    .hero {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+
+    .hero h1 {
+      font-size: clamp(28px, 4vw, 40px);
+      font-weight: 700;
+      letter-spacing: -0.8px;
+      line-height: 1.15;
+      margin-bottom: 10px;
+    }
+
+    .hero p {
+      font-size: 17px;
+      color: var(--text-secondary);
+      max-width: 560px;
+      margin: 0 auto 28px;
+      line-height: 1.5;
+    }
+
+    /* ── Prompt card ── */
+    .prompt-card {
+      background: var(--surface);
+      backdrop-filter: blur(16px) saturate(180%);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-card);
+      padding: 20px;
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    .prompt-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+
+    #prompt-input {
+      flex: 1;
+      resize: none;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      font-size: 15px;
+      font-family: inherit;
+      color: var(--text);
+      background: var(--surface-solid);
+      outline: none;
+      line-height: 1.5;
+      min-height: 80px;
+      transition: border-color 0.2s;
+    }
+
+    #prompt-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(0,113,227,0.12);
+    }
+
+    #prompt-input::placeholder { color: #aeaeb2; }
+
+    .btn-compare {
+      flex-shrink: 0;
+      height: 44px;
+      padding: 0 22px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-md);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: var(--shadow-btn);
+      transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn-compare:hover  { background: var(--accent-hover); }
+    .btn-compare:active { transform: scale(0.97); box-shadow: none; }
+    .btn-compare:disabled {
+      background: #aeaeb2;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    /* ── Model toggles ── */
+    .model-toggles {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+      justify-content: center;
+    }
+
+    .model-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      border: 1.5px solid var(--border);
+      background: var(--surface-solid);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+    }
+
+    .model-toggle input[type="checkbox"] { display: none; }
+
+    .model-toggle .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      opacity: 0.4;
+      transition: opacity 0.15s;
+    }
+
+    /* color-mix() requires Chrome 111+, Firefox 113+, Safari 16.2+ */
+    .model-toggle.active { border-color: currentColor; background: color-mix(in srgb, currentColor 8%, transparent); }
+    .model-toggle.active .dot { opacity: 1; }
+
+    .toggle-openai    { color: var(--openai-color); }
+    .toggle-anthropic { color: var(--anthropic-color); }
+    .toggle-google    { color: var(--google-color); }
+    .toggle-manus     { color: var(--manus-color); }
+
+    /* ── Status bar ── */
+    #status-bar {
+      max-width: 760px;
+      margin: 10px auto 0;
+      font-size: 13px;
+      color: var(--text-secondary);
+      min-height: 18px;
+      text-align: center;
+    }
+
+    /* ── Response grid ── */
+    #responses-section { display: none; }
+
+    .section-label {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-secondary);
+      margin-bottom: 14px;
+    }
+
+    .response-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    /* ── Response Card ── */
+    .response-card {
+      background: var(--surface);
+      backdrop-filter: blur(16px) saturate(180%);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-card);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .response-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 30px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06);
+    }
+
+    .card-header {
+      padding: 14px 18px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .model-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .card-header-info { flex: 1; min-width: 0; }
+
+    .card-model-name {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: -0.1px;
+    }
+
+    .card-model-version {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 1px;
+    }
+
+    .card-status {
+      font-size: 12px;
+      font-weight: 500;
+      padding: 3px 9px;
+      border-radius: 20px;
+    }
+
+    .status-loading { background: #fff3cd; color: #856404; }
+    .status-done    { background: #d1f2eb; color: #0d6e4e; }
+    .status-error   { background: #fde8e8; color: #9b2335; }
+
+    .card-body {
+      padding: 16px 18px;
+      flex: 1;
+      font-size: 14.5px;
+      line-height: 1.65;
+      color: var(--text);
+      overflow-wrap: break-word;
+      white-space: pre-wrap;
+    }
+
+    /* Skeleton loader */
+    .skeleton {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 4px 0;
+    }
+
+    .skeleton-line {
+      height: 13px;
+      border-radius: 6px;
+      background: linear-gradient(90deg, #e5e5ea 0%, #f2f2f7 50%, #e5e5ea 100%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s ease-in-out infinite;
+    }
+
+    @keyframes shimmer {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    .card-footer {
+      padding: 10px 18px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-secondary);
+      border-top: 1px solid var(--border);
+    }
+
+    .copy-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-secondary);
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 6px;
+      border-radius: var(--radius-sm);
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .copy-btn:hover { background: rgba(0,0,0,0.05); color: var(--text); }
+
+    /* ── Analysis Card ── */
+    .analysis-card {
+      background: linear-gradient(135deg,
+        rgba(0,113,227,0.04) 0%,
+        rgba(124,58,237,0.04) 100%);
+      border: 1px solid rgba(0,113,227,0.15);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-card);
+      padding: 24px 28px;
+    }
+
+    .analysis-card h2 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .analysis-sections { display: grid; gap: 16px; }
+
+    .analysis-block {
+      background: var(--surface-solid);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px 18px;
+    }
+
+    .analysis-block h3 {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-secondary);
+      margin-bottom: 10px;
+    }
+
+    .analysis-block p,
+    .analysis-block ul {
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--text);
+    }
+
+    .analysis-block ul {
+      padding-left: 18px;
+    }
+
+    .analysis-block ul li { margin-bottom: 4px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
+      main { padding: 24px 16px 60px; }
+      .prompt-row { flex-direction: column; }
+      .btn-compare { width: 100%; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ Header ══ -->
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      LLM Comparison Dashboard
+    </div>
+    <span class="badge">Demo Mode</span>
+  </div>
+</header>
+
+<!-- ══ Main ══ -->
+<main>
+  <!-- Hero -->
+  <div class="hero">
+    <h1>Compare AI Models<br>Side by Side</h1>
+    <p>Send the same prompt to ChatGPT, Claude, Gemini, and Manus simultaneously — then analyze their responses.</p>
+
+    <!-- Prompt Card -->
+    <div class="prompt-card">
+      <div class="prompt-row">
+        <textarea
+          id="prompt-input"
+          placeholder="Ask anything… e.g. &quot;Explain quantum entanglement in simple terms&quot;"
+          rows="3"
+        ></textarea>
+        <button class="btn-compare" id="compare-btn" onclick="runComparison()">
+          Compare Models
+        </button>
+      </div>
+
+      <!-- Model toggles -->
+      <div class="model-toggles">
+        <label class="model-toggle toggle-openai active" id="toggle-openai">
+          <input type="checkbox" checked data-model="openai" onchange="syncToggle(this)" />
+          <span class="dot" style="background:var(--openai-color)"></span>
+          ChatGPT
+        </label>
+        <label class="model-toggle toggle-anthropic active" id="toggle-anthropic">
+          <input type="checkbox" checked data-model="anthropic" onchange="syncToggle(this)" />
+          <span class="dot" style="background:var(--anthropic-color)"></span>
+          Claude
+        </label>
+        <label class="model-toggle toggle-google active" id="toggle-google">
+          <input type="checkbox" checked data-model="google" onchange="syncToggle(this)" />
+          <span class="dot" style="background:var(--google-color)"></span>
+          Gemini
+        </label>
+        <label class="model-toggle toggle-manus active" id="toggle-manus">
+          <input type="checkbox" checked data-model="manus" onchange="syncToggle(this)" />
+          <span class="dot" style="background:var(--manus-color)"></span>
+          Manus
+        </label>
+      </div>
+    </div>
+
+    <div id="status-bar"></div>
+  </div>
+
+  <!-- Responses -->
+  <section id="responses-section">
+    <div class="section-label">Model Responses</div>
+    <div class="response-grid" id="response-grid"></div>
+
+    <!-- Analysis -->
+    <div class="section-label">Comparative Analysis</div>
+    <div class="analysis-card" id="analysis-card">
+      <h2>🔍 Analysis</h2>
+      <div class="analysis-sections" id="analysis-content">
+        <div class="skeleton">
+          <div class="skeleton-line" style="width:80%"></div>
+          <div class="skeleton-line" style="width:60%"></div>
+          <div class="skeleton-line" style="width:90%"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+/* ════════════════════════════════════════════════
+   Model definitions
+════════════════════════════════════════════════ */
+const MODELS = {
+  openai: {
+    name: 'ChatGPT',
+    version: 'GPT-4o',
+    color: 'var(--openai-color)',
+    emoji: '🟢',
+    bg: '#e8f5f0',
+  },
+  anthropic: {
+    name: 'Claude',
+    version: 'Claude 3.5 Sonnet',
+    color: 'var(--anthropic-color)',
+    emoji: '🟠',
+    bg: '#fdf0eb',
+  },
+  google: {
+    name: 'Gemini',
+    version: 'Gemini 1.5 Pro',
+    color: 'var(--google-color)',
+    emoji: '🔵',
+    bg: '#eaf2ff',
+  },
+  manus: {
+    name: 'Manus',
+    version: 'Manus AI',
+    color: 'var(--manus-color)',
+    emoji: '🟣',
+    bg: '#f3eeff',
+  },
+};
+
+/* ════════════════════════════════════════════════
+   Mock response generator
+   Produces realistic-looking but varied mock text
+   per model, personalized to the prompt topic.
+════════════════════════════════════════════════ */
+function mockResponse(modelKey, prompt) {
+  const p = prompt.trim();
+  const word1 = p.split(/\s+/)[0] || 'That';
+  const snippets = {
+    openai: [
+      `Great question! ${word1} is a fascinating topic. Here's a clear, structured breakdown:\n\n` +
+      `**Overview**\nTo understand this well, we need to consider a few key perspectives. The core ` +
+      `idea revolves around the interplay of context, constraints, and intended outcomes.\n\n` +
+      `**Key Points**\n• First and foremost, the foundational concept is straightforward once broken down.\n` +
+      `• There are multiple dimensions to consider, each adding nuance.\n` +
+      `• Practical applications are wide-ranging and highly relevant.\n\n` +
+      `**Takeaway**\nIn summary, this is best approached step by step, with attention to both the ` +
+      `theoretical underpinnings and real-world implications. Happy to go deeper on any aspect!`,
+    ],
+    anthropic: [
+      `I'd be happy to explore this with you. "${p.slice(0, 60)}${p.length > 60 ? '…' : ''}" ` +
+      `touches on something genuinely interesting.\n\n` +
+      `To give you the most useful answer, I want to be transparent about what we know with confidence ` +
+      `versus what involves uncertainty or ongoing debate.\n\n` +
+      `What we can say clearly:\n` +
+      `1. The core premise has solid empirical or conceptual grounding.\n` +
+      `2. Context matters enormously — the answer may differ depending on your specific situation.\n` +
+      `3. There are thoughtful perspectives on multiple sides worth considering.\n\n` +
+      `What I'd encourage you to explore further:\n` +
+      `The nuances here are where the real insight lives. Would you like me to dig into any particular angle?`,
+    ],
+    google: [
+      `Here's a comprehensive answer to your query about "${word1}":\n\n` +
+      `**Summary:** ${word1} can be understood through several lenses — scientific, practical, and conceptual.\n\n` +
+      `**Detailed Explanation**\n` +
+      `According to current knowledge, the phenomenon involves multiple interacting factors. Research ` +
+      `suggests three primary mechanisms are at play, each contributing to the overall effect in measurable ways.\n\n` +
+      `**Related Concepts**\n` +
+      `• Concept A — directly influences outcomes\n` +
+      `• Concept B — provides foundational context\n` +
+      `• Concept C — often overlooked but critical\n\n` +
+      `**Sources & Further Reading**\nFor deeper exploration, I'd recommend looking into peer-reviewed ` +
+      `literature and authoritative overviews. Would you like me to elaborate on any section?`,
+    ],
+    manus: [
+      `Analyzing your request: "${p.slice(0, 80)}${p.length > 80 ? '…' : ''}"\n\n` +
+      `[Processing complete — confidence: HIGH]\n\n` +
+      `**Direct Answer**\nBased on integrated analysis across multiple knowledge domains, ` +
+      `the most accurate and actionable response is as follows:\n\n` +
+      `The question can be decomposed into sub-components, each addressable independently:\n` +
+      `→ Component 1: Well-established consensus exists; answer is reliable.\n` +
+      `→ Component 2: Moderate complexity; context-dependent.\n` +
+      `→ Component 3: Emerging area; treat conclusions as tentative.\n\n` +
+      `**Recommendation**\nFor practical purposes, prioritise Component 1. Review Component 2 in ` +
+      `light of your specific constraints. Monitor Component 3 as understanding evolves.\n\n` +
+      `[Task complete]`,
+    ],
+  };
+  return snippets[modelKey][0];
+}
+
+function mockAnalysis(prompt, models) {
+  const names = models.map(m => MODELS[m].name).join(', ');
+  return {
+    strengths: {
+      openai: 'Structured, approachable explanations with clear formatting and practical examples.',
+      anthropic: 'Nuanced, epistemically careful responses that acknowledge uncertainty.',
+      google: 'Comprehensive coverage with references to sources and related concepts.',
+      manus: 'Systematic decomposition and direct actionable recommendations.',
+    },
+    differences: [
+      'ChatGPT and Gemini favour bullet-point structure; Claude and Manus use prose with inline emphasis.',
+      'Claude explicitly flags uncertainty; the others present conclusions more confidently.',
+      'Manus provides a confidence score and task-completion marker — unique among the group.',
+      'Gemini emphasises sourcing and further reading; others focus on self-contained answers.',
+    ],
+    useCases: [
+      { model: 'ChatGPT', useCase: 'Quick, friendly explanations for general audiences.' },
+      { model: 'Claude', useCase: 'Tasks requiring careful reasoning, nuance, or ethical sensitivity.' },
+      { model: 'Gemini', useCase: 'Research queries that benefit from source-aware, comprehensive answers.' },
+      { model: 'Manus', useCase: 'Analytical workflows where structured decomposition adds value.' },
+    ],
+  };
+}
+
+/* ════════════════════════════════════════════════
+   Toggle logic
+════════════════════════════════════════════════ */
+function syncToggle(checkbox) {
+  const model = checkbox.dataset.model;
+  const label = document.getElementById(`toggle-${model}`);
+  if (checkbox.checked) {
+    label.classList.add('active');
+  } else {
+    label.classList.remove('active');
+  }
+}
+
+function getEnabledModels() {
+  return [...document.querySelectorAll('.model-toggle input[type="checkbox"]:checked')]
+    .map(cb => cb.dataset.model);
+}
+
+/* ════════════════════════════════════════════════
+   Comparison runner
+════════════════════════════════════════════════ */
+let running = false;
+
+async function runComparison() {
+  if (running) return;
+  const prompt = document.getElementById('prompt-input').value.trim();
+  if (!prompt) {
+    flashStatus('Please enter a prompt first.', true);
+    return;
+  }
+  const enabled = getEnabledModels();
+  if (enabled.length === 0) {
+    flashStatus('Select at least one model.', true);
+    return;
+  }
+
+  running = true;
+  const btn = document.getElementById('compare-btn');
+  btn.disabled = true;
+  btn.textContent = 'Running…';
+
+  setStatus(`Querying ${enabled.length} model${enabled.length > 1 ? 's' : ''}…`);
+
+  // Show responses section
+  const section = document.getElementById('responses-section');
+  section.style.display = 'block';
+
+  // Build skeleton cards
+  const grid = document.getElementById('response-grid');
+  grid.innerHTML = '';
+  enabled.forEach(modelKey => {
+    grid.insertAdjacentHTML('beforeend', buildCard(modelKey, 'loading'));
+  });
+
+  // Reset analysis
+  document.getElementById('analysis-content').innerHTML = skeletonHTML();
+
+  // Simulate staggered API calls
+  const delays = enabled.map(() => 800 + Math.random() * 1600);
+  const maxDelay = Math.max(...delays);
+
+  const results = await Promise.all(
+    enabled.map((modelKey, i) =>
+      new Promise(resolve => {
+        setTimeout(() => {
+          const text = mockResponse(modelKey, prompt);
+          const elapsed = (delays[i] / 1000).toFixed(1);
+          resolve({ modelKey, text, elapsed });
+        }, delays[i]);
+      })
+    )
+  );
+
+  // Populate cards
+  results.forEach(({ modelKey, text, elapsed }) => {
+    const card = document.getElementById(`card-${modelKey}`);
+    if (!card) return;
+    card.querySelector('.card-status').textContent = 'Done';
+    card.querySelector('.card-status').className = 'card-status status-done';
+    card.querySelector('.card-body').textContent = text;
+    card.querySelector('.elapsed').textContent = `${elapsed}s`;
+  });
+
+  setStatus('All responses received. Analysis ready.');
+
+  // Generate analysis after a short pause
+  await sleep(400);
+  renderAnalysis(prompt, enabled);
+
+  btn.disabled = false;
+  btn.textContent = 'Compare Models';
+  running = false;
+}
+
+/* ════════════════════════════════════════════════
+   Card builder
+════════════════════════════════════════════════ */
+function buildCard(modelKey, state) {
+  const m = MODELS[modelKey];
+  return `
+    <div class="response-card" id="card-${modelKey}">
+      <div class="card-header">
+        <div class="model-avatar" style="background:${m.bg}; font-size:18px;">${m.emoji}</div>
+        <div class="card-header-info">
+          <div class="card-model-name" style="color:${m.color}">${m.name}</div>
+          <div class="card-model-version">${m.version}</div>
+        </div>
+        <span class="card-status status-loading">Loading…</span>
+      </div>
+      <div class="card-body">${skeletonHTML()}</div>
+      <div class="card-footer">
+        <span class="elapsed">–</span>
+        <button class="copy-btn" onclick="copyResponse('${modelKey}')">
+          📋 Copy
+        </button>
+      </div>
+    </div>`;
+}
+
+function skeletonHTML() {
+  return `<div class="skeleton">
+    <div class="skeleton-line" style="width:85%"></div>
+    <div class="skeleton-line" style="width:70%"></div>
+    <div class="skeleton-line" style="width:90%"></div>
+    <div class="skeleton-line" style="width:55%"></div>
+    <div class="skeleton-line" style="width:80%"></div>
+  </div>`;
+}
+
+/* ════════════════════════════════════════════════
+   Analysis renderer
+════════════════════════════════════════════════ */
+function renderAnalysis(prompt, enabled) {
+  const analysis = mockAnalysis(prompt, enabled);
+  const container = document.getElementById('analysis-content');
+
+  const strengthsRows = enabled.map(m =>
+    `<li><strong>${MODELS[m].name}:</strong> ${analysis.strengths[m] || 'N/A'}</li>`
+  ).join('');
+
+  const diffRows = analysis.differences.map(d => `<li>${d}</li>`).join('');
+
+  const nameToKey = Object.fromEntries(Object.entries(MODELS).map(([k, v]) => [v.name, k]));
+  const useRows = analysis.useCases
+    .filter(u => enabled.includes(nameToKey[u.model]))
+    .map(u => `<li><strong>${u.model}:</strong> ${u.useCase}</li>`)
+    .join('');
+
+  container.innerHTML = `
+    <div class="analysis-block">
+      <h3>✨ Strengths by Model</h3>
+      <ul>${strengthsRows}</ul>
+    </div>
+    <div class="analysis-block">
+      <h3>🔄 Key Differences</h3>
+      <ul>${diffRows}</ul>
+    </div>
+    <div class="analysis-block">
+      <h3>🎯 Recommended Use Cases</h3>
+      <ul>${useRows}</ul>
+    </div>`;
+}
+
+/* ════════════════════════════════════════════════
+   Utilities
+════════════════════════════════════════════════ */
+function copyResponse(modelKey) {
+  const card = document.getElementById(`card-${modelKey}`);
+  const text = card?.querySelector('.card-body')?.textContent ?? '';
+  navigator.clipboard.writeText(text).then(() => {
+    flashStatus('Copied to clipboard!');
+  }).catch(() => {
+    flashStatus('Copy failed — please select text manually.', true);
+  });
+}
+
+let statusTimer = null;
+function setStatus(msg) {
+  document.getElementById('status-bar').textContent = msg;
+}
+function flashStatus(msg, isError = false) {
+  const bar = document.getElementById('status-bar');
+  bar.textContent = msg;
+  bar.style.color = isError ? '#c00' : 'var(--text-secondary)';
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => {
+    bar.textContent = '';
+    bar.style.color = '';
+  }, 3500);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Allow Ctrl+Enter / Cmd+Enter to submit
+document.getElementById('prompt-input').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    runComparison();
+  }
+});
+</script>
+</body>
+</html>
