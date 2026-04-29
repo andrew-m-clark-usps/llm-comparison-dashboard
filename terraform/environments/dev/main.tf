@@ -8,6 +8,8 @@ terraform {
     }
   }
 
+  # NOTE: The state bucket must be created manually before running `terraform init`.
+  # Create it with: aws s3api create-bucket --bucket llm-dashboard-terraform-state --region us-east-1
   backend "s3" {
     bucket = "llm-dashboard-terraform-state"
     key    = "dev/terraform.tfstate"
@@ -94,6 +96,28 @@ resource "aws_cloudfront_origin_access_control" "website" {
   signing_protocol                  = "sigv4"
 }
 
+# CloudFront cache policy
+resource "aws_cloudfront_cache_policy" "website" {
+  name        = "${var.project_name}-${var.environment}-cache-policy"
+  min_ttl     = 0
+  default_ttl = 300
+  max_ttl     = 1200
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    cookies_config {
+      cookie_behavior = "none"
+    }
+
+    headers_config {
+      header_behavior = "none"
+    }
+
+    query_strings_config {
+      query_string_behavior = "none"
+    }
+  }
+}
+
 # CloudFront distribution
 resource "aws_cloudfront_distribution" "website" {
   enabled             = true
@@ -112,18 +136,7 @@ resource "aws_cloudfront_distribution" "website" {
     cached_methods         = ["GET", "HEAD"]
     target_origin_id       = "s3-website"
     viewer_protocol_policy = "redirect-to-https"
-
-    forwarded_values {
-      query_string = false
-
-      cookies {
-        forward = "none"
-      }
-    }
-
-    min_ttl     = 0
-    default_ttl = 300
-    max_ttl     = 1200
+    cache_policy_id        = aws_cloudfront_cache_policy.website.id
   }
 
   restrictions {
